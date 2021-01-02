@@ -1,0 +1,32 @@
+{
+	"domain": "example.com",
+	"accessKeyId": "xxx",
+	"accessSecret": "xxx",
+	"record" : [
+		{
+			"name": "note",
+			"A": "",
+			"AAAA": "",
+			"CNAME":""
+		},
+		{
+			"name": "www",
+			"A": "",
+			"AAAA": "",
+			"CNAME": ""
+		},
+		{
+			"name": "cloud",
+			"A": "",
+			"AAAA": "",
+			"CNAME": ""
+		},
+		{
+			"name": "iot",
+			"A": "",
+			"AAAA": "",
+			"CNAME": ""
+		}
+	]
+
+}

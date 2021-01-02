@@ -2,11 +2,30 @@ package main
 
 import (
 	"net"
+	"flag"
 	"strings"
 	"fmt"
+	"encoding/json"
+	"io/ioutil"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/alidns"
 
 )
+
+type RecordInfo struct {
+	Name	string	`json:"name"`
+	A_R	string	`json:"A"`
+	AAAA_R	string	`json:"AAAA"`
+	CNAME_R	string	`json:"CNAMEE"`
+}
+
+type ConfigInfo struct {
+	Domain	string		`json:"domain"`
+	KeyId	string		`json:"accessKeyId"`
+	Secret	string		`json:"accessSecret"`
+	Records []RecordInfo	`json:"record"`
+}
+var config_file = flag.String("c", "aliyun_ddns.json", "aliyun ddns configuration")
+
 func getRecord(client *alidns.Client, domain, rType, rr string) (records []alidns.Record, err error) {
 	request := alidns.CreateDescribeDomainRecordsRequest()
 	request.Scheme = "https"
@@ -64,14 +83,25 @@ func delRecord(client *alidns.Client, recordId string) error {
 
 func main() {
 	var ipv6_addr string
-	var ipv4_addr string
-	RRs := []string{"@", "www", "git", "cloud", "share", "dl", "iot", "rt", "oa", "mail"}
-	domainName := "<your domain>"
+	//var ipv4_addr string
+	var config ConfigInfo
+	flag.Parse()
+	data, err := ioutil.ReadFile(*config_file)
+	if err != nil {
+		fmt.Println("Read config file ", *config_file," failed: ", err)
+		return
+	}
+
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return
+	}
+
 	//get global IPv6 address
 	addrs, err := net.InterfaceAddrs()
 
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get IP address failed: ", err)
 		return
 	}
 	for _, address := range addrs {
@@ -80,61 +110,37 @@ func main() {
 			break
 		}
 	}
-
-	//get global IPv4 address
-	addr4s, err := net.LookupHost("<oray domain(for ipv4)>")
-	if err != nil || addr4s[0] == "0.0.0.0" {
-		ipv4_addr = ""
-	} else {
-		ipv4_addr = addr4s[0]
-	}
 	//update DNS info
-	client, err := alidns.NewClientWithAccessKey("cn-hangzhou", "<accessKeyId>", "<accessSecret>")
+	client, err := alidns.NewClientWithAccessKey("cn-hangzhou", config.KeyId, config.Secret)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	request := alidns.CreateDescribeDomainRecordsRequest()
 	request.Scheme = "https"
-	request.DomainName = domainName
+	request.DomainName = config.Domain
 
 	response, err := client.DescribeDomainRecords(request)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	var record4 *alidns.Record
-	var record6 *alidns.Record
-	for _, rr := range RRs {
-		record4 = nil
-		record6 = nil
+
+	var found = false
+	for _, rr := range config.Records {
+		found = false;
 		for _, v := range response.DomainRecords.Record {
-			if rr == v.RR && v.Type == "AAAA" {
-				if record6 != nil {
-					delRecord(client, v.RecordId)
-				} else {
-					record6 = &v
+			if !found && rr.Name == v.RR {
+				if v.Type == "AAAA" {
 					if v.Value != ipv6_addr {
-						updateRecord(client, v.RecordId, domainName, "AAAA", rr, ipv6_addr)
+						updateRecord(client, v.RecordId, config.Domain, "AAAA", rr.Name, ipv6_addr)
 					}
-				}
-			}
-			if ipv4_addr != "" && rr == v.RR && v.Type == "A" {
-				if record4 != nil {
-					delRecord(client, v.RecordId)
-				} else {
-					record4 = &v
-					if v.Value != ipv4_addr {
-						updateRecord(client, v.RecordId, domainName, "A", rr, ipv4_addr)
-					}
+					found = true
 				}
 			}
 		}
-		if ipv4_addr != "" && record4 == nil {
-			addRecord(client, domainName, "A", rr, ipv4_addr)
-		}
-		if record6 == nil {
-			addRecord(client, domainName, "AAAA", rr, ipv6_addr)
+		if !found {
+			addRecord(client, config.Domain, "AAAA", rr.Name, ipv6_addr)
 		}
 	}
 }
