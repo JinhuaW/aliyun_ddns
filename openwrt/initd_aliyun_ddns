@@ -1,0 +1,23 @@
+#!/bin/sh /etc/rc.common
+
+START=30
+USE_PROCD=1
+
+PROG=/sbin/openwrt_aliyun_ddns_server
+
+boot()
+{
+	BOOT=1
+	start "$@"
+}
+
+start_service() {
+	procd_open_instance
+	procd_set_param command "$PROG" -c /etc/config/aliyun_ddns.json
+	procd_set_param respawn
+	procd_close_instance
+}
+
+shutdown() {
+	killall openwrt_aliyun_ddns_server
+}
